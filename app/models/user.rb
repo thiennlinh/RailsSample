@@ -1,5 +1,15 @@
 class User < ApplicationRecord
 	has_many :microposts, dependent: :destroy
+
+	has_many :active_relationships, class_name: Relationship.name,
+    foreign_key: :follower_id, dependent: :destroy
+  	has_many :passive_relationships, class_name: Relationship.name,
+    foreign_key: :followed_id, dependent: :destroy
+
+
+	has_many :following, through: :active_relationships, source: :followed
+  	has_many :followers, through: :passive_relationships, source: :follower
+
 	before_save {self.email = email.downcase}
 	before_create :create_activation_digest
 
@@ -54,12 +64,24 @@ class User < ApplicationRecord
 	end
 
 	def send_password_reset_email
-    UserMailer.password_reset(self).deliver_now
-  end
+    	UserMailer.password_reset(self).deliver_now
+  	end
 
-  def feed
-  	Micropost.where "user_id = ?", id
-  end
+  	def feed
+   		Micropost.where("user_id IN (?) OR user_id = ?", following_ids, id)
+ 	end
+
+	def follow(other_user)
+   		active_relationships.create(followed_id: other_user.id)
+ 	end
+
+	def unfollow(other_user) # Unfollows a user.
+	    following.delete(other_user)
+	end
+
+	def following?(other_user) # Returns if the current user is following the other_user or not
+	    following.include?(other_user)
+	end
 
 	private
 	def create_activation_digest
